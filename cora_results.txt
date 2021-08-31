@@ -1,0 +1,34 @@
+lr 0.005, else normal:
+Exiting from training early because of KeyboardInterrupt
+Test Accuracy: 74.3201
+Train Accuracy: 100.0000
+Convergence Time (Epochs): 4906.0000
+TOTAL TIME TAKEN: 1979.3419s
+AVG TIME PER EPOCH: 0.3988s
+
+
+lr 0.001, else normal:
+Exiting from training early because of KeyboardInterrupt
+Test Accuracy: 61.4058
+Train Accuracy: 100.0000
+Convergence Time (Epochs): 5108.0000
+TOTAL TIME TAKEN: 2001.4063s
+AVG TIME PER EPOCH: 0.3871s
+
+
+lr 0.001, no pos encodings:
+Exiting from training early because of KeyboardInterrupt
+Test Accuracy: 58.5497
+Train Accuracy: 100.0000
+Convergence Time (Epochs): 4899.0000
+TOTAL TIME TAKEN: 1987.6131s
+AVG TIME PER EPOCH: 0.4010s
+
+
+lr 0.005, 16-dim pos encodings:
+Exiting from training early because of KeyboardInterrupt
+Test Accuracy: 71.5873
+Train Accuracy: 100.0000
+Convergence Time (Epochs): 6073.0000
+TOTAL TIME TAKEN: 2004.8771s
+AVG TIME PER EPOCH: 0.3256s

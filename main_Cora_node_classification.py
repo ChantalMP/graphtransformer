@@ -92,21 +92,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
         print("[!] Adding Laplacian positional encoding.")
         dataset._add_laplacian_positional_encodings(net_params['pos_enc_dim'])
         print('Time LapPE:',time.time()-st)
-        
-    if net_params['wl_pos_enc']:
-        st = time.time()
-        print("[!] Adding WL positional encoding.")
-        dataset._add_wl_positional_encodings()
-        print('Time WL PE:',time.time()-st)
-    
-    if net_params['full_graph']:
-        st = time.time()
-        print("[!] Converting the given graphs to full graphs..")
-        dataset._make_full_graph()
-        print('Time taken to convert to full graphs:',time.time()-st)
-        
-    trainset, valset, testset = dataset.train, dataset.val, dataset.test
-        
+
     root_log_dir, root_ckpt_dir, write_file_name, write_config_file = dirs
     device = net_params['device']
     
@@ -123,11 +109,6 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
     torch.manual_seed(params['seed'])
     if device.type == 'cuda':
         torch.cuda.manual_seed(params['seed'])
-    
-    print("Training Graphs: ", len(trainset))
-    print("Validation Graphs: ", len(valset))
-    print("Test Graphs: ", len(testset))
-    print("Number of Classes: ", net_params['n_classes'])
 
     model = gnn_model(MODEL_NAME, net_params)
     model = model.to(device)
@@ -142,11 +123,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
     epoch_train_accs, epoch_val_accs = [], [] 
     
     # import train and evaluate functions
-    from train.train_SBMs_node_classification import train_epoch, evaluate_network 
-
-    train_loader = DataLoader(trainset, batch_size=params['batch_size'], shuffle=True, collate_fn=dataset.collate)
-    val_loader = DataLoader(valset, batch_size=params['batch_size'], shuffle=False, collate_fn=dataset.collate)
-    test_loader = DataLoader(testset, batch_size=params['batch_size'], shuffle=False, collate_fn=dataset.collate)
+    from train.train_Cora_node_classification import train_epoch, evaluate_network
         
     # At any point you can hit Ctrl + C to break out of training early.
     try:
@@ -157,10 +134,10 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
 
                 start = time.time()
 
-                epoch_train_loss, epoch_train_acc, optimizer = train_epoch(model, optimizer, device, train_loader, epoch)
+                epoch_train_loss, epoch_train_acc, optimizer = train_epoch(model, optimizer, device, dataset.graph, epoch)
                     
-                epoch_val_loss, epoch_val_acc = evaluate_network(model, device, val_loader, epoch)
-                _, epoch_test_acc = evaluate_network(model, device, test_loader, epoch)        
+                epoch_val_loss, epoch_val_acc = evaluate_network(model, device, dataset.graph, epoch, split='val')
+                _, epoch_test_acc = evaluate_network(model, device, dataset.graph, epoch, split='test')
                 
                 epoch_train_losses.append(epoch_train_loss)
                 epoch_val_losses.append(epoch_val_loss)
@@ -211,8 +188,8 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
         print('Exiting from training early because of KeyboardInterrupt')
     
     
-    _, test_acc = evaluate_network(model, device, test_loader, epoch)
-    _, train_acc = evaluate_network(model, device, train_loader, epoch)
+    _, test_acc = evaluate_network(model, device, dataset.graph, epoch, split='test')
+    _, train_acc = evaluate_network(model, device, dataset.graph, epoch, split='train')
     print("Test Accuracy: {:.4f}".format(test_acc))
     print("Train Accuracy: {:.4f}".format(train_acc))
     print("Convergence Time (Epochs): {:.4f}".format(epoch))
@@ -353,11 +330,11 @@ def main():
         net_params['pos_enc_dim'] = int(args.pos_enc_dim)
     if args.wl_pos_enc is not None:
         net_params['wl_pos_enc'] = True if args.pos_enc=='True' else False
-        
-    # SBM
-    net_params['in_dim'] = torch.unique(dataset.train[0][0].ndata['feat'],dim=0).size(0) # node_dim (feat is an integer)
-    net_params['int_feat'] = True
-    net_params['n_classes'] = torch.unique(dataset.train[0][1],dim=0).size(0)
+
+    # Cora
+    net_params['in_dim'] = dataset.graph.ndata['feat'].shape[1] # node_dim - 1433
+    net_params['int_feat'] = False
+    net_params['n_classes'] = dataset.data.num_classes #7
     
 
     root_log_dir = out_dir + 'logs/' + MODEL_NAME + "_" + DATASET_NAME + "_GPU" + str(config['gpu']['id']) + "_" + time.strftime('%Hh%Mm%Ss_on_%b_%d_%Y')
@@ -380,8 +357,8 @@ def main():
     
     
     
-    
-main()    
+if __name__ == '__main__':
+    main()
 
 
 

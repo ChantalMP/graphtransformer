@@ -17,6 +17,7 @@ class GraphTransformerNet(nn.Module):
         super().__init__()
 
         in_dim_node = net_params['in_dim'] # node_dim (feat is an integer)
+        int_feat = net_params['int_feat']
         hidden_dim = net_params['hidden_dim']
         out_dim = net_params['out_dim']
         n_classes = net_params['n_classes']
@@ -41,8 +42,11 @@ class GraphTransformerNet(nn.Module):
             self.embedding_lap_pos_enc = nn.Linear(pos_enc_dim, hidden_dim)
         if self.wl_pos_enc:
             self.embedding_wl_pos_enc = nn.Embedding(max_wl_role_index, hidden_dim)
-        
-        self.embedding_h = nn.Embedding(in_dim_node, hidden_dim) # node feat is an integer
+
+        if int_feat:
+            self.embedding_h = nn.Embedding(in_dim_node, hidden_dim) # node feat is an integer #TODO what if node feat is not an integer
+        else:
+            self.embedding_h = nn.Linear(in_dim_node, hidden_dim)
         
         self.in_feat_dropout = nn.Dropout(in_feat_dropout)
         
