@@ -224,6 +224,7 @@ def main():
     parser.add_argument('--gpu_id', help="Please give a value for gpu id")
     parser.add_argument('--model', help="Please give a value for model name")
     parser.add_argument('--dataset', help="Please give a value for dataset name")
+    parser.add_argument('--library', help="Please give a value for dataset name", default='dgl', choices=['dgl', 'p_geo'])
     parser.add_argument('--out_dir', help="Please give a value for out_dir")
     parser.add_argument('--seed', help="Please give a value for seed")
     parser.add_argument('--epochs', help="Please give a value for epochs")
@@ -268,7 +269,7 @@ def main():
         DATASET_NAME = args.dataset
     else:
         DATASET_NAME = config['dataset']
-    dataset = LoadData(DATASET_NAME)
+    dataset = LoadData(DATASET_NAME, library=args.library)
     if args.out_dir is not None:
         out_dir = args.out_dir
     else:
@@ -300,6 +301,7 @@ def main():
     net_params['device'] = device
     net_params['gpu_id'] = config['gpu']['id']
     net_params['batch_size'] = params['batch_size']
+    net_params['library'] = args.library
     if args.L is not None:
         net_params['L'] = int(args.L)
     if args.hidden_dim is not None:
@@ -332,9 +334,15 @@ def main():
         net_params['wl_pos_enc'] = True if args.pos_enc=='True' else False
 
     # Cora
-    net_params['in_dim'] = dataset.graph.ndata['feat'].shape[1] # node_dim - 1433
+    if args.library == 'dgl':
+        net_params['in_dim'] = dataset.graph.ndata['feat'].shape[1] # node_dim - 1433
+
+    else:
+        net_params['in_dim'] = dataset.graph.num_features # node_dim - 1433
+
+    net_params['n_classes'] = dataset.data.num_classes  # 7
     net_params['int_feat'] = False
-    net_params['n_classes'] = dataset.data.num_classes #7
+
     
 
     root_log_dir = out_dir + 'logs/' + MODEL_NAME + "_" + DATASET_NAME + "_GPU" + str(config['gpu']['id']) + "_" + time.strftime('%Hh%Mm%Ss_on_%b_%d_%Y')

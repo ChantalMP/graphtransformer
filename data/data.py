@@ -5,7 +5,7 @@ from data.molecules import MoleculeDataset
 from data.SBMs import SBMsDataset
 from data.cora import CoraDataset
 
-def LoadData(DATASET_NAME):
+def LoadData(DATASET_NAME, library="dgl"):
     """
         This function is called in the main_xx.py file 
         returns:
@@ -21,7 +21,7 @@ def LoadData(DATASET_NAME):
         return SBMsDataset(DATASET_NAME)
 
     if DATASET_NAME == 'Cora':
-        return CoraDataset(DATASET_NAME)
+        return CoraDataset(DATASET_NAME, library=library)
 
 
     

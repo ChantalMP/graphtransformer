@@ -1,11 +1,12 @@
+from collections import defaultdict
+
 import dgl.data
 
-#from torch_geometric.datasets import Planetoid TODO currently import not working
+from torch_geometric.datasets import Planetoid
+from torch_geometric.utils.num_nodes import maybe_num_nodes
+from torch_geometric.utils import degree
 
 import time
-import os
-import pickle
-import numpy as np
 
 import dgl
 import torch
@@ -13,8 +14,6 @@ import torch
 from scipy import sparse as sp
 import numpy as np
 import networkx as nx
-
-import hashlib
 
 def self_loop(g):
     """
@@ -63,37 +62,71 @@ def make_full_graph(g):
 
     return full_g
 
+def to_scipy_sparse_matrix(edge_index, edge_attr=None, num_nodes=None):
+    r""" from https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/convert.html
+    """
+    row, col = edge_index.cpu()
 
-def laplacian_positional_encoding(g, pos_enc_dim):
+    if edge_attr is None:
+        edge_attr = torch.ones(row.size(0))
+    else:
+        edge_attr = edge_attr.view(-1).cpu()
+        assert edge_attr.size(0) == row.size(0)
+
+    N = maybe_num_nodes(edge_index, num_nodes)
+    out = sp.coo_matrix(
+        (edge_attr.numpy(), (row.numpy(), col.numpy())), (N, N))
+    return out
+
+def laplacian_positional_encoding(g, pos_enc_dim, library):
     """
         Graph positional encoding v/ Laplacian eigenvectors
     """
-
     # Laplacian
-    A = g.adjacency_matrix_scipy(return_edge_ids=False).astype(float)
-    N = sp.diags(dgl.backend.asnumpy(g.in_degrees()).clip(1) ** -0.5, dtype=float)
-    L = sp.eye(g.number_of_nodes()) - N * A * N
+    if library == "dgl":
+        A = g.adjacency_matrix_scipy(return_edge_ids=False).astype(float)
+        N = sp.diags(dgl.backend.asnumpy(g.in_degrees()).clip(1) ** -0.5, dtype=float)
+        L = sp.eye(g.number_of_nodes()) - N * A * N
 
-    # Eigenvectors with scipy
-    # EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR')
-    EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim + 1, which='SR', tol=1e-2)  # for 40 PEs
-    EigVec = EigVec[:, EigVal.argsort()]  # increasing order
-    g.ndata['lap_pos_enc'] = torch.from_numpy(EigVec[:, 1:pos_enc_dim + 1]).float()
+        # Eigenvectors with scipy
+        # EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR')
+        EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim + 1, which='SR', tol=1e-2)  # for 40 PEs
+        EigVec = EigVec[:, EigVal.argsort()]  # increasing order
+        g.ndata['lap_pos_enc'] = torch.from_numpy(EigVec[:, 1:pos_enc_dim + 1]).float()
+
+    else:
+        A = to_scipy_sparse_matrix(g.edge_index).astype(float)
+        N = sp.diags(dgl.backend.asnumpy(degree(g.edge_index[0]).int()).clip(1) ** -0.5, dtype=float)
+        L = sp.eye(g.num_nodes) - N * A * N
+
+        # Eigenvectors with scipy
+        # EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim+1, which='SR')
+        EigVal, EigVec = sp.linalg.eigs(L, k=pos_enc_dim + 1, which='SR', tol=1e-2)  # for 40 PEs
+        EigVec = EigVec[:, EigVal.argsort()]  # increasing order
+        g['ndata']['lap_pos_enc'] = torch.from_numpy(EigVec[:, 1:pos_enc_dim + 1]).float()
 
     return g
 
 class CoraDataset(torch.utils.data.Dataset):
 
-    def __init__(self, name):
+    def __init__(self, name, library=dgl):
         """
             Loading Cora datasets
         """
         start = time.time()
+        self.library = library
         print("[I] Loading dataset %s..." % (name))
         self.name = name
-        self.data = dgl.data.CoraGraphDataset()
-        self.graph = self.data[0]
-        print('num nodes / edges :', self.graph.num_nodes(), self.graph.num_edges())
+        if library == 'dgl':
+            self.data = dgl.data.CoraGraphDataset()
+            self.graph = self.data[0]
+            print('num nodes / edges :', self.graph.num_nodes(), self.graph.num_edges())
+        else: #pytorch geometric (p_geo)
+            self.data = Planetoid(root='/tmp/Cora', name='Cora')
+            self.graph = self.data.data
+            self.graph['ndata'] = defaultdict(dict)
+            print('num nodes / edges :', self.graph.num_nodes, self.graph.num_edges)
+
         print("[I] Finished loading.")
         print("[I] Data load time: {:.4f}s".format(time.time() - start))
 
@@ -114,7 +147,7 @@ class CoraDataset(torch.utils.data.Dataset):
 
     def _add_laplacian_positional_encodings(self, pos_enc_dim):
         # Graph positional encoding v/ Laplacian eigenvectors
-        self.graph = laplacian_positional_encoding(self.graph, pos_enc_dim)
+        self.graph = laplacian_positional_encoding(self.graph, pos_enc_dim, self.library)
 
 
 

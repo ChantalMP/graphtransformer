@@ -17,13 +17,19 @@ def train_epoch(model, optimizer, device, graph, epoch):
     nb_data = 0
     gpu_mem = 0
 
-    features = graph.ndata['feat'].to(device)
-    labels = graph.ndata['label'].to(device)
-    train_mask = graph.ndata['train_mask'].to(device)
+    if model.library == 'dgl':
+        features = graph.ndata['feat'].to(device)
+        labels = graph.ndata['label'].to(device)
+        train_mask = graph.ndata['train_mask'].to(device)
+    else:
+        features = graph['x'].to(device)
+        labels = graph['y'].to(device)
+        train_mask = graph['train_mask'].to(device)
 
     optimizer.zero_grad()
     try:
-        lap_pos_enc = graph.ndata['lap_pos_enc'].to(device)
+
+        lap_pos_enc = graph.ndata['lap_pos_enc'].to(device) if model.library == 'dgl' else graph['ndata']['lap_pos_enc']
         sign_flip = torch.rand(lap_pos_enc.size(1)).to(device)
         sign_flip[sign_flip>=0.5] = 1.0; sign_flip[sign_flip<0.5] = -1.0
         lap_pos_enc = lap_pos_enc * sign_flip.unsqueeze(0)
